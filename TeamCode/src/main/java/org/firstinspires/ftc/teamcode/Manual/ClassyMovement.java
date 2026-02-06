@@ -18,6 +18,7 @@ import com.arcrobotics.ftclib.command.WaitUntilCommand;
 import com.arcrobotics.ftclib.command.button.Trigger;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
 import com.arcrobotics.ftclib.gamepad.GamepadKeys;
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
@@ -37,7 +38,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
-@Config
+@Configurable
 @TeleOp(name = "ClassyMovement")
 public class ClassyMovement extends CommandOpMode {
     private List<LynxModule> hubs;
@@ -79,6 +80,9 @@ public class ClassyMovement extends CommandOpMode {
     private double headingOffset = 0;
     double alpha;
 
+    public static double testRPM = 0;
+    public static double angl = 0;
+
 
 
     /**
@@ -102,7 +106,7 @@ public class ClassyMovement extends CommandOpMode {
         IO = new IOSubsystem(hardwareMap);
 
         follower = Constants.createFollower(hardwareMap); // ALIANCE = TEAM IS READ;
-        if (ALLIANCE){follower.setStartingPose(new Pose(97.19626168224299,9.24299065420562,Math.toRadians(90)));}  //new Pose(97.19626168224299,34.24299065420562,Math.toRadians(270))
+        if (ALLIANCE){follower.setStartingPose(new Pose(57.018691588785046,6.857009345794408,Math.toRadians(180)));}  //new Pose(97.19626168224299,34.24299065420562,Math.toRadians(270))
         else{follower.setStartingPose(new Pose(97.19626168224299,9.24299065420562,Math.toRadians(90)));}//new Pose(114.54205607476636,9.981308411214965,Math.toRadians(270))
         driver1 = new GamepadEx(gamepad1);
         driver2 = new GamepadEx(gamepad2);
@@ -292,6 +296,7 @@ public class ClassyMovement extends CommandOpMode {
     }
 
 
+
     /**
      * Loop that runs for every iteration of the OpMode after start is pressed.
      */
@@ -330,6 +335,10 @@ public class ClassyMovement extends CommandOpMode {
             telemetryA.addData("    interpAngle:", interpValues[1]);
             telemetryA.addData("    interpRPM:", interpValues[0]);
         }
+
+        IO.setMotorRPM(testRPM);
+        IO.setHood(angl);
+
         telemetryA.addData("SORTER:","target=%.4f  SORTER=%.4f  error=%.4f",IO.returnTargetPos(),IO.returnSorterPos(),IO.returnTargetPos()+IO.returnSorterPos());
         telemetryA.addData("FLYWHEEL:","target=%.4f  RPM=%.4f  error=%.4f",IO.returnTargetRPM(),IO.returnRPM(),IO.returnTargetRPM()-IO.returnRPM());
         telemetryA.addData("TURRET:","target=%.4f  TURRET=%.4f  error=%.4f",IO.returnTargetTuret("ticks"),IO.returnTuret()[0],IO.returnTargetTuret("ticks")-IO.returnTuret()[0]);

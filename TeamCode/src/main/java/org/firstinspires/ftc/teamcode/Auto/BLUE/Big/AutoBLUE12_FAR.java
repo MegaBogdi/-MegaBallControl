@@ -69,11 +69,6 @@ public class AutoBLUE12_FAR extends CommandOpMode {
         telemetry = telemetryA;
         IO.teamIsRed = false;
 
-
-
-
-
-
         StartToSpike3Path = follower.pathBuilder()
                 .addPath(new BezierCurve(startPose,helpSpike3Pos,spike3Pos))
                 .setConstantHeadingInterpolation(shootFarPos.getHeading())
@@ -115,7 +110,7 @@ public class AutoBLUE12_FAR extends CommandOpMode {
                                 new InstantCommand(()->IO.setTargetTurretRads(Math.toRadians(-90))) //!!!!!!!!!!!!!!!!! REVERSE if wrong
                         ),
                         utils.newAutoOutake(4500), //PRELOAD   //GANDESTE LA UN RPM MEDIU CONSTANT PT CONSERVARE  (FRIGIDER)
-                        new FollowPathCommand(follower, StartToSpike3Path).beforeStarting(()->follower.setMaxPower(0.8)).alongWith(utils.newStartIntake(5000)).andThen(newStopIntake()),
+                        new FollowPathCommand(follower, StartToSpike3Path).beforeStarting(()->follower.setMaxPower(0.8)).alongWith(utils.newStartIntake(3500)).andThen(newStopIntake()),
                         new FollowPathCommand(follower,Spike3ToShootFarPath).beforeStarting(()->follower.setMaxPower(1)),
                         utils.newAutoOutake(4500),//SPIKE 3 (FAR)
                         new FollowPathCommand(follower, ShootFarToSpike2LeverPath).alongWith(utils.newStartIntake(3000)).beforeStarting(()->follower.setMaxPower(0.7)),

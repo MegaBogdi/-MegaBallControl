@@ -27,4 +27,8 @@ android {
     namespace = 'com.qualcomm.ftcrobotcontroller'
 }
 
+dependencies {
+    implementation "com.bylazar:fullpanels:1.0.12"
+}
+
 apply from: '../build.dependencies.gradle'
