@@ -44,6 +44,8 @@ public class ClassyMovement extends CommandOpMode {
     private List<LynxModule> hubs;
     private boolean ALLIANCE;
     private double kTurn;
+
+    s
     private ElapsedTime timer;
     private IOSubsystem IO;
 
