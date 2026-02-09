@@ -1,10 +1,11 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.dashboard.config.Config;
+
+import com.bylazar.configurables.annotations.Configurable;
 
 
 public class Gains {
-    @Config
+    @Configurable
     public static class ProfileGains {
         public static double kP = 0;
         public static double kD = 0;
@@ -12,14 +13,14 @@ public class Gains {
         public static double kJ = 0;
         public static double velCmdEps;
     }
-    @Config
+    @Configurable
     public static class PIDFGains{
         public static double kP = 0;
         public static double kD = 0;
 
     }
 
-    @Config
+    @Configurable
     public static class SorterGains{
         // Gains SORTER
         public static double sP =0.0006;  //0.000405
@@ -28,14 +29,22 @@ public class Gains {
         public static double sS = 0.0436 ;
         public static double sT = 0.068;
         public static double SORT_POS_EPS =20;
-        public static double SORT_VEL_EPS =2;
-        public static double minVelCmd; // above this we are oficialy trying to move
-        public static double jamVel; // above this we are not moving
-        public static double pwrMin; // above this we are trying HARD
-        public static double jamTime; // above this its stuck for to long
+        public static double SORT_VEL_EPS =300;
+        public static double pwrMin = 0.45; // above this we are trying HARD
+        public static double jamTime=0.5; // above this its stuck for to long
+
+        // Trapezoid profile (sorter ticks space, ticks/s velocity, ticks/s^2 acceleration)
+        public static boolean SORT_USE_TRAPEZOID = true;
+        public static double SORT_PROFILE_MAX_V = 4200;
+        public static double SORT_PROFILE_MAX_A = 22000;
+        public static double SORT_PROFILE_KP = 0.00045;
+        public static double SORT_PROFILE_KD = 0.000028;
+        public static double SORT_PROFILE_KA = 0.0;
+        public static double SORT_PROFILE_MIN_DIST = 30;
+        public static double SORT_PROFILE_VEL_CMD_EPS = 80;
     }
 
-    @Config
+    @Configurable
     public static class TurretGains{
         public static double tP=0.00022;
         public static double tI=0;
@@ -48,7 +57,7 @@ public class Gains {
         public static int MIN_TICKS =-15000;
 
     }
-    @Config
+    @Configurable
     public static class RPMGains{
         public static double kP =0.007;
         public static double kI =0.0;

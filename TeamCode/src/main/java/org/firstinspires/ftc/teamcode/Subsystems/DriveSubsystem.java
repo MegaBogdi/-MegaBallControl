@@ -1,24 +1,15 @@
 
 package org.firstinspires.ftc.teamcode.Subsystems;
 
-import com.acmerobotics.dashboard.config.Config;
 import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.arcrobotics.ftclib.controller.PIDController;
-import com.arcrobotics.ftclib.drivebase.MecanumDrive;
-import com.arcrobotics.ftclib.hardware.motors.Motor;
-import com.arcrobotics.ftclib.util.MathUtils;
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-
-import java.util.Arrays;
-import java.util.function.DoubleSupplier;
-
 import dev.frozenmilk.dairy.cachinghardware.CachingDcMotorEx;
-@Config
+@Configurable
 public class DriveSubsystem extends SubsystemBase {
 
     private PIDController pidTurn;
@@ -60,10 +51,10 @@ public class DriveSubsystem extends SubsystemBase {
         BR.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         BL.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
-//        FR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-//        FL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-//        BR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-//        BL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        FR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        FL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        BR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        BL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
     }
 
@@ -71,7 +62,7 @@ public class DriveSubsystem extends SubsystemBase {
         rx = rx*0.85;
         // The equivalent button is start on Xbox-style controllers.
         // Rotate the movement direction counter to the bot's rotation
-        botHeading = botHeading;   //yawScalar = 1;
+        //yawScalar = 1;
         double rotX = x * Math.cos(-botHeading) - y * Math.sin(-botHeading);
         double rotY = x * Math.sin(-botHeading) + y * Math.cos(-botHeading);
 

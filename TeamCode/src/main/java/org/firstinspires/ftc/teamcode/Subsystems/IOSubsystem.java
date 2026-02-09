@@ -1,14 +1,42 @@
 package org.firstinspires.ftc.teamcode.Subsystems;
 
 import static com.arcrobotics.ftclib.util.MathUtils.clamp;
+import static org.firstinspires.ftc.teamcode.Gains.RPMGains.RPM_EPS;
+import static org.firstinspires.ftc.teamcode.Gains.RPMGains.kD;
+import static org.firstinspires.ftc.teamcode.Gains.RPMGains.kI;
+import static org.firstinspires.ftc.teamcode.Gains.RPMGains.kP;
+import static org.firstinspires.ftc.teamcode.Gains.RPMGains.kS;
+import static org.firstinspires.ftc.teamcode.Gains.RPMGains.kV;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_POS_EPS;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_PROFILE_KA;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_PROFILE_KD;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_PROFILE_KP;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_PROFILE_MAX_A;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_PROFILE_MAX_V;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_PROFILE_MIN_DIST;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_PROFILE_VEL_CMD_EPS;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_USE_TRAPEZOID;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.SORT_VEL_EPS;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.jamTime;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.pwrMin;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.sD;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.sI;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.sP;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.sS;
+import static org.firstinspires.ftc.teamcode.Gains.SorterGains.sT;
+import static org.firstinspires.ftc.teamcode.Gains.TurretGains.MAX_TICKS;
+import static org.firstinspires.ftc.teamcode.Gains.TurretGains.MIN_TICKS;
+import static org.firstinspires.ftc.teamcode.Gains.TurretGains.TUR_POS_EPS;
+import static org.firstinspires.ftc.teamcode.Gains.TurretGains.TUR_VEL_EPS;
+import static org.firstinspires.ftc.teamcode.Gains.TurretGains.tD;
+import static org.firstinspires.ftc.teamcode.Gains.TurretGains.tI;
+import static org.firstinspires.ftc.teamcode.Gains.TurretGains.tP;
+import static org.firstinspires.ftc.teamcode.Gains.TurretGains.tS;
+import static org.firstinspires.ftc.teamcode.Gains.TurretGains.tT;
 
-import static  org.firstinspires.ftc.teamcode.Gains.SorterGains.*;
-import static  org.firstinspires.ftc.teamcode.Gains.TurretGains.*;
-import static  org.firstinspires.ftc.teamcode.Gains.RPMGains.*;
-
-
-import com.acmerobotics.dashboard.config.Config;
 import com.arcrobotics.ftclib.command.SubsystemBase;
+import com.arcrobotics.ftclib.controller.PIDController;
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.LLResult;
@@ -21,22 +49,16 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.NormalizedColorSensor;
 import com.qualcomm.robotcore.hardware.NormalizedRGBA;
-
-
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.teamcode.Gains;
-import org.firstinspires.ftc.teamcode.TrapezoidProfile;
-
-import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.hardware.Servo;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 import dev.frozenmilk.dairy.cachinghardware.CachingCRServo;
 import dev.frozenmilk.dairy.cachinghardware.CachingDcMotorEx;
 import dev.frozenmilk.dairy.cachinghardware.CachingServo;
 
 
-@Config
+@Configurable
 public class IOSubsystem extends SubsystemBase {
 
     private HardwareMap hmap;
@@ -46,11 +68,13 @@ public class IOSubsystem extends SubsystemBase {
     private final CachingServo push2;
     private final CachingServo hood;
     private final Limelight3A lime;
+
     public final CachingDcMotorEx sorter;
     private final CachingDcMotorEx collector;
     private final CachingDcMotorEx launcher1;
     private final CachingDcMotorEx launcher2;
     private final NormalizedColorSensor snsr1;
+    private final CachingServo led;
 
 
     public boolean teamIsRed=false;
@@ -61,7 +85,7 @@ public class IOSubsystem extends SubsystemBase {
     public static double testPower;
     private int space = 2730;//2730;
     private final double[] BLUE_GOAL = {10.5,134};
-    private final double[] RED_GOAL = {130.5,125};
+    private final double[] RED_GOAL = {135.5,134};
 
     private final double tick_per_rotation = 8192;
 
@@ -69,7 +93,9 @@ public class IOSubsystem extends SubsystemBase {
     public static double targetRPM=0;
     public static int targetPos;
     public static int currentTurret;
-    public static double targetTurret = Math.toRadians(0);
+    public double targetTurret = Math.toRadians(0);
+    // Mechanical zero offset between robot heading and turret encoder zero.
+    public static double turretHeadingOffsetRad = 0.0;
     private long lastUpdate = 1;
     public int[] ALL = new int[3];
     public int[] MOTIF = new int[3];
@@ -83,11 +109,26 @@ public class IOSubsystem extends SubsystemBase {
     public double PUSH_MIN_LIMIT = 0.056;
     public double PUSH_MAX_LIMIT = 0.156;
 
+    private double jamStart;
+    public boolean jam;
+    public boolean recovering;
 
     private PIDController pid;
     private PIDController pidT;
     private PIDController pidRPM;
-    private final TrapezoidProfile sorter_profile;
+
+    // Sorter trapezoid profile state.
+    private boolean sorterProfileNeedsInit = true;
+    private boolean sorterProfileActive = false;
+    private double sorterProfileStartTime = 0.0;
+    private double sorterProfileStartPos = 0.0;
+    private double sorterProfileDistance = 0.0;
+    private double sorterProfileDirection = 1.0;
+    private double sorterProfileT1 = 0.0;
+    private double sorterProfileT2 = 0.0;
+    private double sorterProfileT3 = 0.0;
+    private double sorterProfilePeakV = 0.0;
+    private double sorterProfileAccelDist = 0.0;
 
 
 
@@ -123,7 +164,8 @@ public class IOSubsystem extends SubsystemBase {
         launcher2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         //==========================LED===================================
-
+        led = new CachingServo(hMap.get(Servo.class,"led"));
+        led.setPosition(0);
         //==========================SERVO=========================================
 
         push1 = new CachingServo(hMap.get(Servo.class,"pushA"));
@@ -160,14 +202,13 @@ public class IOSubsystem extends SubsystemBase {
         pid = new PIDController(sP, sI, sD);
         targetPos = 0;
 
-        pidT = new PIDController(Gains.TurretGains.tP,Gains.TurretGains.tI,Gains.TurretGains.tD);
+        pidT = new PIDController(tP,tI,tD);
         targetRPM=0;
 
-        pidRPM = new PIDController(Gains.RPMGains.kP, Gains.RPMGains.kI, Gains.RPMGains.kD);
+        pidRPM = new PIDController(kP,kI,kD);
         targetRPM=0;
 
 
-        sorter_profile = new TrapezoidProfile(space,0,0,false);
 
         //GoBildaPinpointDriver pinpoint;
 
@@ -181,6 +222,9 @@ public class IOSubsystem extends SubsystemBase {
         teamIsRed = ALIANCE;
     }
 
+    public void setLed(double color){
+        led.setPosition(color);
+    }
 
 /*
     double[][] shootingData = {
@@ -196,8 +240,11 @@ public class IOSubsystem extends SubsystemBase {
     };*/
 
     double[][] shootingData = {
-            {350,testRPM,testAngle},
-            {400,testRPM,testAngle}
+            {108,2150,0},
+            {200,2550,0.2},
+            {231, 2600, 0.2},
+            {312,3000,0.23},
+            {343,3150,0.27}
     };
 
 
@@ -205,7 +252,7 @@ public class IOSubsystem extends SubsystemBase {
 
     public double[] getInterpolatedValues(double currentDistance)
     {
-        if (currentDistance == -1) return new double[] {2300, 0};
+        if (currentDistance == -1) return new double[] {0, 0};
 
         if (currentDistance <= shootingData[0][0]) {
             return new double[]{ shootingData[0][1], shootingData[0][2] };
@@ -234,7 +281,9 @@ public class IOSubsystem extends SubsystemBase {
         return new double[]{0, 0};
     }
 
-
+    public int getTurretTicks(){
+        return launcher1.getCurrentPosition()+19270;
+    }
     public int getMotif(){
         LLResult result = lime.getLatestResult();
 
@@ -280,11 +329,12 @@ public class IOSubsystem extends SubsystemBase {
         double dist;
         if (teamIsRed){
             double Ry = RED_GOAL[1] - y;
-            double Rx = 145 - x;
+            double Rx = RED_GOAL[0] - x;
             dist = Math.sqrt(Math.pow(Rx,2) + Math.pow(Ry,2));
         } else {
             double Ry = BLUE_GOAL[1] - y;
-            dist = Math.sqrt(Math.pow(x,2) + Math.pow(Ry,2));
+            double Rx = BLUE_GOAL[0] - x;
+            dist = Math.sqrt(Math.pow(Rx,2) + Math.pow(Ry,2));
         }
         return dist*2.54;
     }
@@ -326,18 +376,14 @@ public class IOSubsystem extends SubsystemBase {
 
 
     public double getAngle(Pose pose){
-        RED_GOAL[0 ]=redX; RED_GOAL[1]=redY;
-        double Alpha;
-        if (teamIsRed){
-            Alpha = Math.atan((RED_GOAL[1]-pose.getY())/(RED_GOAL[0]-pose.getX()));
-            Alpha -= Math.toRadians(0);
+        double[] goal = teamIsRed ? RED_GOAL : BLUE_GOAL;
+        double dx = goal[0] - pose.getX();
+        double dy = goal[1] - pose.getY();
+        return Math.atan2(dy, dx);
+    }
 
-        } else {
-            Alpha = Math.atan((BLUE_GOAL[1] - pose.getY()) /(pose.getX()-BLUE_GOAL[0]));
-            Alpha = -Alpha;
-            Alpha += Math.toRadians(180);
-        }
-        return Alpha;
+    public double turretCommandFromGoalAngle(double goalAngle, Pose pose) {
+        return AngleUnit.normalizeRadians(goalAngle - pose.getHeading() - turretHeadingOffsetRad);
     }
 
 
@@ -351,22 +397,26 @@ public class IOSubsystem extends SubsystemBase {
 
 
     public double[] returnTuret(){
-        return new double[] {launcher1.getCurrentPosition(), launcher1.getVelocity()};
+        return new double[] {launcher1.getCurrentPosition()+19270, launcher1.getVelocity()};
 
     }
     public double returnTargetTuret(String mode){
-        if(mode=="rads"){return targetTurret;} else {return rads2ticks(targetTurret);}
+        if ("rads".equals(mode)) { return targetTurret; }
+        return rads2ticks(targetTurret);
     }
 
     public boolean isTurretReady(double alpha,Follower recivedFollower){
-        if (Math.abs(AngleUnit.normalizeRadians(AngleUnit.normalizeRadians(recivedFollower.getPose().getHeading() + Math.toRadians(180)) + tick2rads(currentTurret) - alpha))<1){return true;}else{return false;}
+        double turretFieldHeading = AngleUnit.normalizeRadians(
+                recivedFollower.getPose().getHeading() + turretHeadingOffsetRad + tick2rads(currentTurret)
+        );
+        return Math.abs(AngleUnit.normalizeRadians(turretFieldHeading - alpha)) < 0.16;
     }
 
     public double testTurretReady(double alpha,Follower recivedFollower) {
-        double heading = AngleUnit.normalizeRadians(recivedFollower.getPose().getHeading() + Math.toRadians(180));
-        double turretRad = tick2rads(currentTurret);
-        double absTurretHeading = turretRad + heading;
-        return Math.abs(AngleUnit.normalizeRadians(AngleUnit.normalizeRadians(recivedFollower.getPose().getHeading() + Math.toRadians(180)) + tick2rads(currentTurret) - alpha));
+        double turretFieldHeading = AngleUnit.normalizeRadians(
+                recivedFollower.getPose().getHeading() + turretHeadingOffsetRad + tick2rads(currentTurret)
+        );
+        return Math.abs(AngleUnit.normalizeRadians(turretFieldHeading - alpha));
     }
     public int rads2ticks(double rads){
         double ratio = 207.0/44.0;
@@ -426,11 +476,11 @@ public class IOSubsystem extends SubsystemBase {
         return rez;
     }
     public void climb(){
-        targetPos += space;
+        shiftSorterTarget(space);
         cycle_up();
     }
     public void climbDown(){
-        targetPos -= space;
+        shiftSorterTarget(-space);
         cycle_up();cycle_up();
     }
 
@@ -484,20 +534,19 @@ public class IOSubsystem extends SubsystemBase {
     }
 
     public void close(){
-        if (nowOpen){targetPos+=space/2;}
+        if (nowOpen){shiftSorterTarget(space/2);}
         nowOpen = false;
     }
     public void open(){
-        if (!nowOpen){targetPos-=space/2;}
+        if (!nowOpen){shiftSorterTarget(-space/2);}
         nowOpen = true;
     }
     public void climb1inDir(){
         int dir = 1;
-        double error = Math.abs(targetPos-sorter.getCurrentPosition());
-        targetPos += space;
-        double try1error = Math.abs(targetPos-sorter.getCurrentPosition());
+        double currentPos = sorter.getCurrentPosition();
+        double error = Math.abs(targetPos-currentPos);
+        double try1error = Math.abs((targetPos + space)-currentPos);
         if (try1error>error){dir = -dir;}
-        targetPos -= space; //revert try one;
         if (dir>0){climb();}else{climbDown();}
     }
     public boolean isSorterReady(){
@@ -507,7 +556,7 @@ public class IOSubsystem extends SubsystemBase {
 
     }
     public void rectify(){
-        targetPos +=space/2;
+        shiftSorterTarget(space/2);
     }
 
 
@@ -517,12 +566,12 @@ public class IOSubsystem extends SubsystemBase {
         if (ALL[1]==demand){
             return true;
         } else if (ALL[2]==demand){
-            targetPos -= space;
+            shiftSorterTarget(-space);
             cycle_up();
             cycle_up();
             return true;
         } else if (ALL[0]==demand){
-            targetPos +=space;
+            shiftSorterTarget(space);
             cycle_up();
             return true;
         } else {return false;}
@@ -533,34 +582,156 @@ public class IOSubsystem extends SubsystemBase {
 
 
 
-    public void update_sep_pid(){
-        pid.setPID(sP,sI, sD);
-
+    public void update_sep_pid(double t){
         double currentPos = sorter.getCurrentPosition();
         double currentVel = sorter.getVelocity();
-        double error  = targetPos-currentPos;
+        double cmdPos = targetPos;
+        double cmdVel = 0.0;
+        double cmdAcc = 0.0;
 
-        double output = pid.calculate(currentPos,targetPos);
+        if (SORT_USE_TRAPEZOID) {
+            if (sorterProfileNeedsInit) {
+                startSorterProfile(t, currentPos, targetPos);
+            }
 
-        if (Math.abs(currentVel) < SORT_VEL_EPS){ // if static
-            output+= sS *Math.signum(error);
-        } else if (Math.abs(error) > SORT_POS_EPS){ // if should be moving
-            output+= sT*Math.signum(error);
+            if (sorterProfileActive) {
+                double localTime = Math.max(0.0, t - sorterProfileStartTime);
+                if (localTime >= sorterProfileT3) {
+                    sorterProfileActive = false;
+                    cmdPos = targetPos;
+                } else {
+                    cmdPos = sorterProfileStartPos + sorterProfileDirection * profilePosition(localTime);
+                    cmdVel = sorterProfileDirection * profileVelocity(localTime);
+                    cmdAcc = sorterProfileDirection * profileAcceleration(localTime);
+                }
+            }
         }
 
+        double posError  = cmdPos - currentPos;
+        double finalError = targetPos - currentPos;
 
+        double output;
+        if (SORT_USE_TRAPEZOID) {
+            output = SORT_PROFILE_KP * posError + SORT_PROFILE_KD * (cmdVel - currentVel) + SORT_PROFILE_KA * cmdAcc;
+        } else {
+            output = pid.calculate(currentPos, targetPos);
+        }
 
+        if (SORT_USE_TRAPEZOID) {
+            if (Math.abs(cmdVel) > SORT_PROFILE_VEL_CMD_EPS) {
+                if (Math.abs(currentVel) < SORT_VEL_EPS) {
+                    output += sS * Math.signum(cmdVel);
+                } else {
+                    output += sT * Math.signum(cmdVel);
+                }
+            }
+        } else {
+            if (Math.abs(currentVel) < SORT_VEL_EPS){ // if static
+                output+= sS *Math.signum(finalError);
+            } else if (Math.abs(finalError) > SORT_POS_EPS){ // if should be moving
+                output+= sT*Math.signum(finalError);
+            }
+        }
 
-        if (Math.abs(error)< SORT_POS_EPS){output=0;} //TOLERANCE  on error epsilon
+        if (Math.abs(finalError) < SORT_POS_EPS && Math.abs(cmdVel) < SORT_PROFILE_VEL_CMD_EPS) {
+            output = 0;
+        }
         output = Math.max(-1,Math.min(output,1));      //CLAMP POWER
+
+        jam = jamDetect(t,finalError,currentVel,output);
+
+
         sorter.setPower(output);
+    }
+
+    private void shiftSorterTarget(int deltaTicks) {
+        targetPos += deltaTicks;
+        sorterProfileNeedsInit = true;
+    }
+
+    private void startSorterProfile(double nowSec, double currentPos, double target) {
+        sorterProfileNeedsInit = false;
+
+        double distance = Math.abs(target - currentPos);
+        if (distance < SORT_PROFILE_MIN_DIST || SORT_PROFILE_MAX_V <= 0 || SORT_PROFILE_MAX_A <= 0) {
+            sorterProfileActive = false;
+            return;
+        }
+
+        sorterProfileActive = true;
+        sorterProfileStartTime = nowSec;
+        sorterProfileStartPos = currentPos;
+        sorterProfileDirection = Math.signum(target - currentPos);
+        sorterProfileDistance = distance;
+
+        double accelTime = SORT_PROFILE_MAX_V / SORT_PROFILE_MAX_A;
+        double accelDist = 0.5 * SORT_PROFILE_MAX_A * accelTime * accelTime;
+
+        if (2.0 * accelDist >= sorterProfileDistance) {
+            // Triangle profile.
+            sorterProfileT1 = Math.sqrt(sorterProfileDistance / SORT_PROFILE_MAX_A);
+            sorterProfileT2 = sorterProfileT1;
+            sorterProfileT3 = 2.0 * sorterProfileT1;
+            sorterProfilePeakV = SORT_PROFILE_MAX_A * sorterProfileT1;
+            sorterProfileAccelDist = 0.5 * SORT_PROFILE_MAX_A * sorterProfileT1 * sorterProfileT1;
+        } else {
+            // Trapezoid profile.
+            sorterProfileT1 = accelTime;
+            sorterProfilePeakV = SORT_PROFILE_MAX_V;
+            sorterProfileAccelDist = accelDist;
+            double cruiseDist = sorterProfileDistance - 2.0 * sorterProfileAccelDist;
+            sorterProfileT2 = sorterProfileT1 + cruiseDist / sorterProfilePeakV;
+            sorterProfileT3 = sorterProfileT2 + sorterProfileT1;
+        }
+    }
+
+    private double profileAcceleration(double localTime) {
+        if (localTime < sorterProfileT1) return SORT_PROFILE_MAX_A;
+        if (localTime < sorterProfileT2) return 0.0;
+        if (localTime < sorterProfileT3) return -SORT_PROFILE_MAX_A;
+        return 0.0;
+    }
+
+    private double profileVelocity(double localTime) {
+        if (localTime < sorterProfileT1) return SORT_PROFILE_MAX_A * localTime;
+        if (localTime < sorterProfileT2) return sorterProfilePeakV;
+        if (localTime < sorterProfileT3) return sorterProfilePeakV - SORT_PROFILE_MAX_A * (localTime - sorterProfileT2);
+        return 0.0;
+    }
+
+    private double profilePosition(double localTime) {
+        if (localTime < sorterProfileT1) return 0.5 * SORT_PROFILE_MAX_A * localTime * localTime;
+        if (localTime < sorterProfileT2) return sorterProfileAccelDist + sorterProfilePeakV * (localTime - sorterProfileT1);
+        if (localTime < sorterProfileT3) {
+            double rem = sorterProfileT3 - localTime;
+            return sorterProfileDistance - 0.5 * SORT_PROFILE_MAX_A * rem * rem;
+        }
+        return sorterProfileDistance;
+    }
+
+
+    public boolean jamDetect(double t ,double error, double vel,double output){
+        boolean shouldBeMoving = Math.abs(error)> SORT_POS_EPS+40; // if comanded to move
+        boolean notMoving = Math.abs(vel)<SORT_VEL_EPS; // if velocity is stuck (not moving)
+        boolean tryingHard = Math.abs(output) > pwrMin; // if aplying enough power
+        // can add shouldBeMoving with pos additional to vel;
+
+        if (shouldBeMoving && notMoving && tryingHard){
+            if (jamStart<0){
+                jamStart = t;
+            }
+        } else { jamStart =-1;}
+
+        boolean jammed = jamStart>=0 && (t-jamStart)>jamTime; // if jammed and jammed enough time than its oficialy jamed;
+        return jammed;
     }
 
 
 
+
+
     public void update_turret_pid(){
-        pidT.setPID(tP,tI,tD);
-        currentTurret =  launcher1.getCurrentPosition();
+        currentTurret =  launcher1.getCurrentPosition()+19270;
         double targetTurretTicks = Math.max(MIN_TICKS,Math.min(rads2ticks(targetTurret), MAX_TICKS)); // clamp before it gets out of range
         double currentTurretVel = launcher1.getVelocity();
         double error = targetTurretTicks-currentTurret;
@@ -590,7 +761,6 @@ public class IOSubsystem extends SubsystemBase {
 
 
     public void update_RPM_pid(){
-        pidRPM.setPID(kP,kI,kD);
         RPM = TPS2RPM(launcher2.getVelocity());
         double error = targetRPM - RPM;
 
@@ -609,21 +779,6 @@ public class IOSubsystem extends SubsystemBase {
         setLauncherPower(power);
     }
 
-    public void update_sorter_profile(double t){
-        double vel = sorter.getVelocity();
-        double pos = sorter.getCurrentPosition();
-        double accCmd = sorter_profile.accel(t);
-        double velCmd = sorter_profile.velocity(t);
-        double posCmd = sorter_profile.position(t);
-
-        double fb = sorter_profile.feedBack(velCmd,posCmd,vel,pos);
-        double ff = sorter_profile.feedForward(velCmd,accCmd,vel);
-        double output = fb+ff;
-        output = Math.min(1,Math.max(-1,output));
-
-        // sorter.setPower(output);
-
-    }
 
 // 207 gear mare
     //90 gear servo

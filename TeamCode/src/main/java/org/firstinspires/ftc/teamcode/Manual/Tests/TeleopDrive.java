@@ -1,23 +1,18 @@
 package org.firstinspires.ftc.teamcode.Manual.Tests;
 
-import com.acmerobotics.dashboard.config.Config;
 import com.arcrobotics.ftclib.command.CommandOpMode;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
-import com.arcrobotics.ftclib.gamepad.GamepadKeys;
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
 import com.qualcomm.hardware.lynx.LynxModule;
-import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.Subsystems.DriveSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import java.util.List;
 
-import dev.frozenmilk.dairy.cachinghardware.CachingServo;
-
-@Config
+@Configurable
 @TeleOp(name = "TeleopDrive",group = "Tests")
 public class TeleopDrive extends CommandOpMode {
 

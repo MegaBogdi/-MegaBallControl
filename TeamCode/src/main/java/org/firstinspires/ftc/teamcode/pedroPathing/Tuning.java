@@ -7,7 +7,6 @@ import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.follower;
 import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.stopRobot;
 import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.telemetryM;
 
-import com.acmerobotics.dashboard.config.Config;
 import com.bylazar.configurables.PanelsConfigurables;
 import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.configurables.annotations.IgnoreConfigurable;
@@ -159,11 +158,9 @@ class LocalizationTest extends OpMode {
      */
     @Override
     public void loop() {
-        follower.setTeleOpDrive(-gamepad1.left_stick_y,-gamepad1.left_stick_x,-gamepad1.right_stick_x, true);//-gamepad1.left_stick_y,-gamepad1.left_stick_x,-gamepad1.right_stick_x
+        follower.setTeleOpDrive(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x, true);
         follower.update();
-        telemetryM.debug("lY:"+(-gamepad1.left_stick_y));
-        telemetryM.debug("lX:"+(-gamepad1.left_stick_x));
-        telemetryM.debug("rX:"+(-gamepad1.right_stick_x));
+
         telemetryM.debug("x:" + follower.getPose().getX());
         telemetryM.debug("y:" + follower.getPose().getY());
         telemetryM.debug("heading:" + follower.getPose().getHeading());
@@ -746,7 +743,6 @@ class LateralZeroPowerAccelerationTuner extends OpMode {
  * @author Harrison Womack - 10158 Scott's Bots
  * @version 1.0, 3/12/2024
  */
-
 class TranslationalTuner extends OpMode {
     public static double DISTANCE = 40;
     private boolean forward = true;
@@ -784,9 +780,9 @@ class TranslationalTuner extends OpMode {
     /** This runs the OpMode, updating the Follower as well as printing out the debug statements to the Telemetry */
     @Override
     public void loop() {
-        Constants.updateFollowerPID();
         follower.update();
         draw();
+
         if (!follower.isBusy()) {
             if (forward) {
                 forward = false;
@@ -816,8 +812,7 @@ class TranslationalTuner extends OpMode {
  * @author Harrison Womack - 10158 Scott's Bots
  * @version 1.0, 3/12/2024
  */
-
-class  HeadingTuner extends OpMode {
+class HeadingTuner extends OpMode {
     public static double DISTANCE = 40;
     private boolean forward = true;
 
@@ -860,7 +855,6 @@ class  HeadingTuner extends OpMode {
      */
     @Override
     public void loop() {
-        Constants.updateFollowerPID();
         follower.update();
         draw();
 
@@ -943,7 +937,6 @@ class DriveTuner extends OpMode {
     @Override
     public void loop() {
         follower.update();
-        Constants.updateFollowerPID();
         draw();
 
         if (!follower.isBusy()) {
@@ -1010,7 +1003,6 @@ class Line extends OpMode {
     @Override
     public void loop() {
         follower.update();
-        Constants.updateFollowerPID();
         draw();
 
         if (!follower.isBusy()) {
@@ -1042,7 +1034,7 @@ class Line extends OpMode {
  * @version 1.0, 3/13/2024
  */
 class CentripetalTuner extends OpMode {
-    public static double DISTANCE = 10;
+    public static double DISTANCE = 20;
     private boolean forward = true;
 
     private Path forwards;
@@ -1086,7 +1078,6 @@ class CentripetalTuner extends OpMode {
     @Override
     public void loop() {
         follower.update();
-        Constants.updateFollowerPID();
         draw();
         if (!follower.isBusy()) {
             if (forward) {
@@ -1125,7 +1116,6 @@ class Triangle extends OpMode {
      */
     @Override
     public void loop() {
-        Constants.updateFollowerPID();
         follower.update();
         draw();
 
@@ -1178,7 +1168,7 @@ class Triangle extends OpMode {
  * @version 1.0, 3/12/2024
  */
 class Circle extends OpMode {
-    public static double RADIUS = 3;
+    public static double RADIUS = 10;
     private PathChain circle;
 
     public void start() {
@@ -1232,6 +1222,7 @@ class Circle extends OpMode {
  * @version 1.1, 5/19/2025
  */
 class Drawing {
+
     public static final double ROBOT_RADIUS = 9; // woah
     private static final FieldManager panelsField = PanelsField.INSTANCE.getField();
 

@@ -1,9 +1,6 @@
 package org.firstinspires.ftc.teamcode.Manual;
 
 
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.config.Config;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.command.Command;
 import com.arcrobotics.ftclib.command.CommandOpMode;
 import com.arcrobotics.ftclib.command.ConditionalCommand;
@@ -11,7 +8,7 @@ import com.arcrobotics.ftclib.command.InstantCommand;
 import com.arcrobotics.ftclib.command.ParallelCommandGroup;
 import com.arcrobotics.ftclib.command.ParallelDeadlineGroup;
 import com.arcrobotics.ftclib.command.RepeatCommand;
-import com.arcrobotics.ftclib.command.ScheduleCommand;
+import com.arcrobotics.ftclib.command.RunCommand;
 import com.arcrobotics.ftclib.command.SequentialCommandGroup;
 import com.arcrobotics.ftclib.command.WaitCommand;
 import com.arcrobotics.ftclib.command.WaitUntilCommand;
@@ -19,6 +16,8 @@ import com.arcrobotics.ftclib.command.button.Trigger;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
 import com.arcrobotics.ftclib.gamepad.GamepadKeys;
 import com.bylazar.configurables.annotations.Configurable;
+import com.bylazar.telemetry.PanelsTelemetry;
+import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
@@ -27,95 +26,85 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
-//import org.firstinspires.ftc.teamcode.Subsystems.DriveSubsystem;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.teamcode.Gains;
+import org.firstinspires.ftc.teamcode.Auto.SharedUtils;
 import org.firstinspires.ftc.teamcode.Subsystems.DriveSubsystem;
 import org.firstinspires.ftc.teamcode.Subsystems.IOSubsystem;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
 @Configurable
 @TeleOp(name = "ClassyMovement")
 public class ClassyMovement extends CommandOpMode {
-    private List<LynxModule> hubs;
-    private boolean ALLIANCE;
-    private double kTurn;
-    private ElapsedTime timer;
-    private IOSubsystem IO;
 
+    private List<LynxModule> hubs;
+    private ElapsedTime timer;
+    private boolean ALLIANCE = false; // Default to False (Blue)
+    private IOSubsystem IO;
     private DriveSubsystem chassis;
 
     GamepadEx driver2;
-
     GamepadEx driver1;
-
-    public static double unghi = 0.0;
-
-    public double tPrev;
-    public double vPrev;
-
 
     IMU imu;
 
-    private Telemetry telemetryA;
-
+    private TelemetryManager telemetryA;
     private double[] interpValues;
 
-    private Pose curPose;
-
-    double rx;
-
-    private boolean go_on = false;
     private boolean controlOverride = false;
 
-    private double error;
     private Follower follower;
+    private Pose defaultPoseBLUE = new Pose(113.19626168224296, 8.897196261682275, Math.toRadians(90));  // blue side horizontal
+    private Pose defaultPoseRED = new Pose(30.97196261682239, 8.448598130841154, Math.toRadians(90));  // blue side horizontal
 
-    private BooleanSupplier found;
     private boolean succesDemand;
-    private double headingOffset = 0;
+    private double lastCameraRefreshSec = -1.0;
+    private double headingOffset = Math.toRadians(90);
     double alpha;
+    int id;
 
-    public static double testRPM = 0;
-    public static double angl = 0;
-
-
-
-    /**
-     * Code to run during the initialization phase of the OpMode.
-     */
+    @Override
     public void initialize() {
+        // -------------------------------------------------------------------------
+        // 1. HARDWARE INITIALIZATION
+        // -------------------------------------------------------------------------
         hubs = hardwareMap.getAll(LynxModule.class);
         hubs.forEach(hub -> hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL));
-
+        timer = new ElapsedTime();
+        timer.startTime();
 
         imu = hardwareMap.get(IMU.class, "imu");
-
         IMU.Parameters parameters = new IMU.Parameters(new RevHubOrientationOnRobot(
                 RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
                 RevHubOrientationOnRobot.UsbFacingDirection.FORWARD));
         imu.initialize(parameters);
-
         imu.resetYaw();
 
+        // -------------------------------------------------------------------------
+        // 2. SUBSYSTEMS & FOLLOWER
+        // -------------------------------------------------------------------------
         chassis = new DriveSubsystem(hardwareMap);
         IO = new IOSubsystem(hardwareMap);
 
-        follower = Constants.createFollower(hardwareMap); // ALIANCE = TEAM IS READ;
-        if (ALLIANCE){follower.setStartingPose(new Pose(57.018691588785046,6.857009345794408,Math.toRadians(180)));}  //new Pose(97.19626168224299,34.24299065420562,Math.toRadians(270))
-        else{follower.setStartingPose(new Pose(97.19626168224299,9.24299065420562,Math.toRadians(90)));}//new Pose(114.54205607476636,9.981308411214965,Math.toRadians(270))
+        follower = Constants.createFollower(hardwareMap);
+
+        follower.setStartingPose(SharedUtils.sharedPose);
+
         driver1 = new GamepadEx(gamepad1);
         driver2 = new GamepadEx(gamepad2);
 
+        // -------------------------------------------------------------------------
+        // 3. TELEMETRY (NEW PANELS FORMAT)
+        // -------------------------------------------------------------------------
+        telemetryA = PanelsTelemetry.INSTANCE.getTelemetry();
+        telemetryA.update(telemetry); // push initial frame to DS + Panels
+
+        // -------------------------------------------------------------------------
+        // 4. COMMAND BINDINGS
+        // -------------------------------------------------------------------------
         register(IO);
         IO.close();
-
-        telemetryA = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
-        telemetryA.update();
 
         Command quickPush = new SequentialCommandGroup(
                 new InstantCommand(() -> IO.setPush(IO.PUSH_MAX_LIMIT)),
@@ -125,62 +114,58 @@ public class ClassyMovement extends CommandOpMode {
                 new InstantCommand(() -> IO.regist_release())
         );
 
+        Command correctify = new SequentialCommandGroup(
+                new InstantCommand(() -> IO.open()),
+                new ParallelDeadlineGroup(
+                        new WaitUntilCommand(() -> IO.isSorterReady()),
+                        new RepeatCommand(new SequentialCommandGroup(
+                                new InstantCommand(() -> IO.climb1inDir()),
+                                new WaitCommand(500)
+                        ))
+                ),
+                new ConditionalCommand(
+                        new InstantCommand(),
+                        new SequentialCommandGroup(
+                                new InstantCommand(() -> IO.climb1inDir()),
+                                new WaitCommand(500)
+                        ),
+                        () -> IO.isSorterReady()
+                ),
+                new InstantCommand(() -> IO.ALL[0] = 0)
+        );
+
+
+        // --- Driver 1 Bindings ---
 
         driver1.getGamepadButton(GamepadKeys.Button.DPAD_UP)
                 .and(new Trigger(() -> !driver1.isDown(GamepadKeys.Button.BACK)))
-                //.whenActive(()->IO.setTargetTurretRads(IO.tick2rads(Gains.TurretGains.MAX_TICKS)));
-                //.whenActive(()->IO.setMotorRPM(2300));
-                        .whenActive(()->IO.setMotorRPM(IO.returnTargetRPM()+500));
-                                //.whenActive(()->IO.setHood(IO.SERVO_MAX_LIMIT));
+                .whenActive(() -> IO.setMotorRPM(IO.returnTargetRPM() + 500));
+
         driver1.getGamepadButton(GamepadKeys.Button.DPAD_DOWN)
                 .and(new Trigger(() -> !driver1.isDown(GamepadKeys.Button.BACK)))
-                        //.whenActive(()->IO.setTargetTurretRads(IO.tick2rads(Gains.TurretGains.MIN_TICKS)));
-                .whenActive(()->IO.setMotorRPM(IO.returnTargetRPM()-500));
+                .whenActive(() -> IO.setMotorRPM(IO.returnTargetRPM() - 500));
+
         driver1.getGamepadButton(GamepadKeys.Button.DPAD_RIGHT)
                 .and(new Trigger(() -> !driver1.isDown(GamepadKeys.Button.BACK)))
-//                .whenActive(()->IO.setMotorRPM(2250));           // 3500
-                //.whenActive(() -> IO.setMotorRPM(2500));
-                .whenActive(new SequentialCommandGroup(new InstantCommand(()->IO.setPush(IO.PUSH_MAX_LIMIT)),new WaitCommand(35),new InstantCommand(()->IO.setPush(IO.PUSH_MIN_LIMIT)),new WaitCommand(35),new InstantCommand(()->IO.regist_release())));
-                        //.whenActive(new ScheduleCommand(quickPush));
-        driver1.getGamepadButton(GamepadKeys.Button.DPAD_LEFT)    // 3400     86 28
+                .whenActive(new SequentialCommandGroup(
+                        new InstantCommand(() -> IO.setPush(IO.PUSH_MAX_LIMIT)),
+                        new WaitCommand(35),
+                        new InstantCommand(() -> IO.setPush(IO.PUSH_MIN_LIMIT)),
+                        new WaitCommand(35),
+                        new InstantCommand(() -> IO.regist_release())
+                ));
+
+        driver1.getGamepadButton(GamepadKeys.Button.DPAD_LEFT)
                 .and(new Trigger(() -> !driver1.isDown(GamepadKeys.Button.BACK)))
-                //.whenActive(()->IO.setTargetTurretRads(-IO.returnTargetTuret("rads")));
-                .whenActive(()->IO.setHood(IO.SERVO_MAX_LIMIT));
-        Command correctify =
-                new SequentialCommandGroup(
-                        new InstantCommand(() -> IO.open()),
-                        new ParallelDeadlineGroup(
-                                new WaitUntilCommand(() -> IO.isSorterReady()),
-                                new RepeatCommand(new SequentialCommandGroup(
-                                        new InstantCommand(() -> IO.climb1inDir()),
-                                        new WaitCommand(500)
-                                ))
-                        ),
-                        new ConditionalCommand(
-                                new InstantCommand(),
-                                new SequentialCommandGroup(
-                                        new InstantCommand(() -> IO.climb1inDir()),
-                                        new WaitCommand(500)
-                                ),
-                                () -> IO.isSorterReady()
-                        ), // Catch last rezidual climb
-                        new InstantCommand(() -> IO.ALL[0] = 0)
-                );
+                .whenActive(() -> IO.setHood(IO.SERVO_MAX_LIMIT));
 
         driver1.getGamepadButton(GamepadKeys.Button.BACK)
                 .and(new Trigger(() -> driver1.isDown(GamepadKeys.Button.A)))
                 .whenActive(correctify);
+
         driver1.getGamepadButton(GamepadKeys.Button.BACK)
                 .and(new Trigger(() -> driver1.isDown(GamepadKeys.Button.B)))
                 .whenActive(() -> IO.rectify());
-
-
-        Command changeHeading = new InstantCommand(() -> {
-            Pose cur = follower.getPose();
-            headingOffset = follower.getPose().getHeading() - Math.toRadians(90);
-            telemetryA.addLine("reading");
-            telemetryA.update();
-        });
 
         driver1.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER)
                 .whileHeld(() -> chassis.setPowerLimit(0.5))
@@ -188,49 +173,69 @@ public class ClassyMovement extends CommandOpMode {
 
         driver1.getGamepadButton(GamepadKeys.Button.START)
                 .and(new Trigger(() -> driver1.isDown(GamepadKeys.Button.Y)))
-                .whenActive(changeHeading)
-                .whenActive(()->gamepad1.rumble(400));
+                .whenActive(new InstantCommand(() -> {
+                    headingOffset = follower.getHeading();
+                }))
+                .whenActive(() -> gamepad1.rumble(400));
 
         driver1.getGamepadButton(GamepadKeys.Button.START)
                 .and(new Trigger(() -> driver1.isDown(GamepadKeys.Button.X)))
-                .whenActive(() -> follower.setPose(new Pose(102.2056074766355, 9.196261682242984, Math.toRadians(270)))) //new Pose(89.64485981308411,9.196261682242984,Math.toRadians(270))
-                .whenActive(()->gamepad1.rumble(400));
+                .whenActive(() -> follower.setPose(ALLIANCE ? defaultPoseRED : defaultPoseBLUE))
+                .whenActive(() -> gamepad1.rumble(400));
+
         driver1.getGamepadButton(GamepadKeys.Button.A)
                 .and(new Trigger(() -> !driver1.isDown(GamepadKeys.Button.START)))
                 .and(new Trigger(() -> !driver1.isDown(GamepadKeys.Button.BACK)))
                 .whenActive(new InstantCommand(() -> IO.climb()));
 
-        Command startIntake =
-                new ConditionalCommand(
-                        new ParallelCommandGroup(
-                                new InstantCommand(() -> IO.start_intake()),
-                                new ConditionalCommand(
-                                        new SequentialCommandGroup(
-                                                new WaitCommand(50),
-                                                new InstantCommand(() -> IO.regist()),
-                                                new InstantCommand(() -> IO.climb()),
-                                                new WaitUntilCommand(() -> !IO.isOcupied())
-                                        ),
-                                        new InstantCommand(() -> {
-                                        }),
-                                        () -> IO.isOcupied() // returns boolean.
-                                )
-                        ),
-                        new InstantCommand(()->{gamepad1.rumble(20);}),
-                        () -> IO.ocupied() < 3
-                );
+        driver1.getGamepadButton(GamepadKeys.Button.Y)
+                .and(new Trigger(() -> !driver1.isDown(GamepadKeys.Button.START)))
+                .and(new Trigger(() -> !driver1.isDown(GamepadKeys.Button.BACK)))
+                .whenActive(() -> IO.demand_index = 0)
+                .whenActive(newMotify(1000));
+
+        new Trigger(() -> driver1.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER) >= 0.2)
+                .whileActiveContinuous(() -> {
+                    IO.expel_intake();
+                    gamepad1.rumble(20);
+                })
+                .whenInactive(() -> IO.stop_intake());
+
+
+        Command startIntake = new ConditionalCommand(
+                new ParallelCommandGroup(
+                        new InstantCommand(() -> IO.start_intake()),
+                        new ConditionalCommand(
+                                new SequentialCommandGroup(
+                                        new WaitCommand(50),
+                                        new InstantCommand(() -> IO.regist()),
+                                        new InstantCommand(() -> IO.climb()),
+                                        new WaitUntilCommand(() -> !IO.isOcupied())
+                                ),
+                                new InstantCommand(() -> {
+                                }),
+                                () -> IO.isOcupied()
+                        )
+                ),
+                new InstantCommand(() -> gamepad1.rumble(20)),
+                () -> IO.ocupied() < 3
+        );
+
         Command stopIntake = new InstantCommand(() -> {
             IO.stop_intake();
             IO.close();
             IO.setPush(0);
         });
 
-
         driver1.getGamepadButton(GamepadKeys.Button.RIGHT_BUMPER)
-                .whenPressed(new ConditionalCommand(new InstantCommand(() -> IO.open()), new InstantCommand(), () -> IO.ocupied() < 3))
-                .whileHeld(startIntake)
-                .whenReleased(stopIntake);
-
+                .and(new Trigger(() -> !IO.jam))
+                .whenActive(new ConditionalCommand(
+                        new InstantCommand(() -> IO.open()),
+                        new InstantCommand(),
+                        () -> IO.ocupied() < 3
+                ))
+                .whileActiveContinuous(startIntake)
+                .whenInactive(stopIntake);
 
         Command interp = new InstantCommand(() -> {
             double dist = IO.getDistanceOdom(follower.getPose());
@@ -238,6 +243,7 @@ public class ClassyMovement extends CommandOpMode {
             IO.setHood(interpValues[1]);
             IO.setMotorRPM(interpValues[0]);
         });
+
         Command Demand = new SequentialCommandGroup(
                 new InstantCommand(() -> succesDemand = IO.getDemanded()),
                 new ConditionalCommand(
@@ -249,117 +255,199 @@ public class ClassyMovement extends CommandOpMode {
                         () -> succesDemand
                 )
         );
+
         Command autoAim = new InstantCommand(() -> {
             alpha = IO.getAngle(follower.getPose());
-            double heading = AngleUnit.normalizeRadians(follower.getPose().getHeading()+Math.toRadians(180));
-            IO.setTargetTurretRads(-(AngleUnit.normalizeRadians(heading-alpha)));
+            IO.targetTurret = IO.turretCommandFromGoalAngle(alpha, follower.getPose());
         });
+
+
         Command autoOutake = new ParallelCommandGroup(
-                autoAim,interp,
+                autoAim,
+                interp,
                 new ConditionalCommand(
                         Demand,
-                        new InstantCommand(()->{}),
-                        () -> IO.isTurretReady(alpha,follower)
+                        new InstantCommand(() -> {
+                        }),
+                        () -> IO.isTurretReady(alpha, follower)
                 )
-
         );
+
+
         Command stopAutoOutake = new InstantCommand(() -> {
             IO.setMotorRPM(0);
             IO.setHood(0.1);
-            //IO.setTargetTurretRads(0);
+            IO.setTargetTurretRads(0);
             controlOverride = false;
         });
 
-
-        new Trigger(() -> driver1.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) >= 0.1)
+        new Trigger(() -> driver1.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER) >= 0.2)
+                .and(new Trigger(() -> !IO.jam))
                 .whenActive(new InstantCommand(() -> IO.close()))
                 .whileActiveContinuous(autoOutake)
                 .whenInactive(stopAutoOutake);
 
-        while (opModeInInit()) {
-            telemetry.addLine("CHOOSE ALLIANCE");
+        schedule(
+                new RunCommand(() -> {
+                    if (IO.jam && !IO.recovering) {
+                        IO.recovering = true;
+                        schedule(createRecoverySeq());
+                    }
+                })
+        );
 
+        // -------------------------------------------------------------------------
+        // 5. ALLIANCE SELECTION LOOP
+        // -------------------------------------------------------------------------
+        while (opModeInInit()) {
             if (gamepad1.dpad_up) {
                 ALLIANCE = true;
-            }
+                IO.teamIsRed = true;
+            }  // RED
             if (gamepad1.dpad_down) {
                 ALLIANCE = false;
-            }
+                IO.teamIsRed = false;
+            } // BLUE
 
-            telemetryA.addLine((ALLIANCE ? ">" : "") + "RED ALLIANCE");
-            telemetryA.addLine((ALLIANCE ? "" : ">") + "BLUE ALLIANCE");
-            telemetryA.update();
-
+            telemetryA.debug("CHOOSE ALLIANCE");
+            telemetryA.debug((ALLIANCE ? "> " : "  ") + "RED ALLIANCE");
+            telemetryA.debug((ALLIANCE ? "  " : "> ") + "BLUE ALLIANCE");
+            telemetryA.update(telemetry);
         }
-        schedule(new InstantCommand(() -> IO.setALIANCE(ALLIANCE)));
+
+
+        // -------------------------------------------------------------------------
+        // 6. APPLY CONFIGURATION
+        // -------------------------------------------------------------------------
 
     }
 
+    private void onOpModeEnd() {
+        SharedUtils.sharedPose = follower.getPose();
+    }
+
+    private Command createRecoverySeq() {
+        return new SequentialCommandGroup(
+                new InstantCommand(() -> {
+                    IO.open();
+                    IO.climbDown();
+                }),
+                new WaitUntilCommand(IO::isOcupied),
+                new SequentialCommandGroup(
+                        new WaitCommand(50),
+                        new InstantCommand(IO::regist),
+                        new InstantCommand(IO::climb),
+                        new WaitUntilCommand(() -> !IO.isOcupied())
+                ),
+                new InstantCommand(() -> {
+                    IO.jam = false;
+                    IO.recovering = false;
+                })
+        );
+    }
 
 
-    /**
-     * Loop that runs for every iteration of the OpMode after start is pressed.
-     */
     @Override
     public void run() {
         hubs.forEach(LynxModule::clearBulkCache);
+
+        if (!opModeIsActive() || isStopRequested()) onOpModeEnd();
+
         super.run();
+
         follower.update();
-        IO.update_sep_pid();
+//        drawDebug(follower);
+
+        IO.update_sep_pid(timer.seconds());
         IO.update_RPM_pid();
         IO.update_turret_pid();
-        //IO.testThePower(1);
-        //IO.testTS();
-        //float[] RGB =IO.getRGB();
-        //follower.setTeleOpDrive(driver1.getLeftY(),driver1.getLeftX(),driver1.getRightX(),false,headingOffset);
-        telemetryA.addData("driver1:","leftY=%.3f leftX%.3f rightX%.3f",driver1.getLeftY(), driver1.getLeftX(), driver1.getRightX());
-        double[] powers = chassis.updateSpeeds(driver1.getLeftY(), driver1.getLeftX(), driver1.getRightX(), AngleUnit.normalizeRadians(follower.getPose().getHeading()+ Math.toRadians(180))  - headingOffset);
-        //chassis.powerTest(driver1.getRightX());
-        //telemetryA.addData("frontLeft:",powers[0]);
-//        telemetryA.addData("frontRight:",powers[2]);
-//        telemetryA.addData("backLeft",powers[1]);
-//        telemetryA.addData("backRight",powers[3]);
-        telemetryA.addData("cords:","x=%.3f y=%.3f",follower.getPose().getX(),follower.getPose().getY());
-        //telemetryA.addData("distOdom:", IO.getDistanceOdom(follower.getPose()));
-        //telemetryA.addData("heading: ",imu.getRobotYawPitchRollAngles().getYaw());
-        //telemetryA.addData("headingFollower: ",Math.toDegrees(follower.getPose().getHeading()));
-        //telemetryA.addData("headingOffset",headingOffset);
-        //telemetryA.addData("sens1R:", IO.getRGB()[0]);
-        //telemetryA.addData("sens1G:", IO.getRGB()[1]);
-        //telemetryA.addData("sens1B:", IO.getRGB()[2]);
-        //telemetryA.addData("sens1Dominant:", IO.readSensor());
-        //telemetryA.addData("0",IO.ALL[0]);
-        //telemetryA.addData("1:",IO.ALL[1]);
-        //telemetryA.addData("2:",IO.ALL[2]);
+        if (IO.ocupied()>=1){windUp();}
+
+        double heading = follower.getPose().getHeading();
+
+        telemetryA.addData("heading", Math.toDegrees(follower.getPose().getHeading()));
+
+
+        chassis.updateSpeeds(driver1.getLeftY(), driver1.getLeftX(), driver1.getRightX(), heading - headingOffset + Math.toRadians(90));
+
+
+        // TELEMETRY (NEW PANELS FORMAT)
+        telemetryA.debug(String.format("driver1: leftY=%.3f leftX=%.3f rightX=%.3f",
+                driver1.getLeftY(), driver1.getLeftX(), driver1.getRightX()));
+
+        telemetryA.debug(String.format("cords: x=%.3f y=%.3f",
+                follower.getPose().getX(), follower.getPose().getY()));
+
         if (interpValues != null) {
-            telemetryA.addData("    interpAngle:", interpValues[1]);
-            telemetryA.addData("    interpRPM:", interpValues[0]);
+            telemetryA.debug(String.format("interpAngle: %.4f", interpValues[1]));
+            telemetryA.debug(String.format("interpRPM:   %.2f", interpValues[0]));
         }
 
-        IO.setMotorRPM(testRPM);
-        IO.setHood(angl);
+        telemetryA.debug(String.format("SORTER: target=%.4f  pos=%.4f  error=%.4f",
+                IO.returnTargetPos(), IO.returnSorterPos(), (IO.returnTargetPos() + IO.returnSorterPos())));
 
-        telemetryA.addData("SORTER:","target=%.4f  SORTER=%.4f  error=%.4f",IO.returnTargetPos(),IO.returnSorterPos(),IO.returnTargetPos()+IO.returnSorterPos());
-        telemetryA.addData("FLYWHEEL:","target=%.4f  RPM=%.4f  error=%.4f",IO.returnTargetRPM(),IO.returnRPM(),IO.returnTargetRPM()-IO.returnRPM());
-        telemetryA.addData("TURRET:","target=%.4f  TURRET=%.4f  error=%.4f",IO.returnTargetTuret("ticks"),IO.returnTuret()[0],IO.returnTargetTuret("ticks")-IO.returnTuret()[0]);
-        //telemetryA.addData("targetTurret", IO.rads2ticks(IO.returnTargetTuret()));
-        //telemetryA.addData("turret",IO.returnTuret()[0]);
-        //telemetryA.addData("turretVel", IO.returnTuret()[1]);
-        telemetryA.addLine("-------test values-----");
-        //telemetryA.addData("rpm",IO.returnRPM());
-        //telemetryA.addData("targetRpm",IO.returnTargetRPM());
-        telemetryA.addData("targetPos", IO.returnTargetPos());
-        telemetryA.addData("Pos", IO.returnSorterPos());
+        telemetryA.debug(String.format("FLYWHEEL: target=%.2f  rpm=%.2f  error=%.2f",
+                IO.returnTargetRPM(), IO.returnRPM(), (IO.returnTargetRPM() - IO.returnRPM())));
 
-        //telemetryA.addData("targetPos",IO.returnTargetPos());
-        //telemetryA.addData("SorterPos",IO.returnSorterPos());
-        //telemetryA.addData("error",IO.returnTargetPos()-IO.returnSorterPos());
-        //telemetryA.addData("ReadyTurret:",IO.testTurretReady(alpha,follower));
-        //telemetryA.addData("isReadyTurret:",IO.isTurretReady(alpha,follower));
-        //telemetryA.addData("turretTarget",IO.returnTargetTuret("ticks"));
-        //telemetryA.addData("turretPos",IO.returnTuret()[0]);
+        telemetryA.debug(String.format("TURRET: target=%.2f  ticks=%.2f  error=%.2f",
+                IO.returnTargetTuret("ticks"), IO.returnTuret()[0], (IO.returnTargetTuret("ticks") - IO.returnTuret()[0])));
 
-        telemetryA.update();
+        telemetryA.debug("-------test values-----");
+        telemetryA.debug(String.format("targetPos: %.4f", IO.returnTargetPos()));
+        telemetryA.debug(String.format("Pos:       %.4f", IO.returnSorterPos()));
+
+        telemetryA.addData("TurretAngle", Math.toDegrees(IO.tick2rads(IO.getTurretTicks())));
+
+        telemetryA.addData("TurretDifference", Math.toDegrees(AngleUnit.normalizeRadians(heading - alpha)));
+        telemetryA.addData("TurretAimErrorDeg", Math.toDegrees(IO.testTurretReady(alpha, follower)));
+
+        telemetryA.addData("DistanceODOM", IO.getDistanceOdom(follower.getPose()));
+
+        telemetryA.addData("angleGoal", Math.toDegrees(IO.getAngle(follower.getPose())));
+
+        telemetryA.addData("team", IO.teamIsRed);
+
+
+
+        telemetryA.update(telemetry);
+
 
     }
+
+
+    public Command newMotify(int timeout) {
+        return
+                new SequentialCommandGroup(
+                        new ParallelDeadlineGroup(
+                                new WaitUntilCommand(() -> IO.checkMotifFind(id)),
+                                new RunCommand(() -> id = IO.getMotif())
+                        ).withTimeout(timeout),
+                        new InstantCommand(() -> {
+                            IO.motifTranslate(id);
+                            IO.stopLimeLight();
+                        }),
+                        new InstantCommand(() -> {
+                            if (IO.checkMotifFind(id)) gamepad1.rumble(300);
+                        })
+                );
+
+    }
+
+    public void windUp() {
+        if (gamepad1.right_trigger < 0.2) {
+            alpha = IO.getAngle(follower.getPose());
+            IO.targetTurret = IO.turretCommandFromGoalAngle(alpha, follower.getPose());
+            IO.setMotorRPM(1500);
+        }
+    }
+
+
+
+
+
 }
+
+
+
+
+

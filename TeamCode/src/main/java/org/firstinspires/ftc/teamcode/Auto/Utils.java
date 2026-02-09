@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.Auto;
 import com.arcrobotics.ftclib.command.Command;
 import com.arcrobotics.ftclib.command.ConditionalCommand;
 import com.arcrobotics.ftclib.command.InstantCommand;
+import com.arcrobotics.ftclib.command.ParallelCommandGroup;
 import com.arcrobotics.ftclib.command.ParallelDeadlineGroup;
 import com.arcrobotics.ftclib.command.RepeatCommand;
 import com.arcrobotics.ftclib.command.RunCommand;
@@ -10,8 +11,8 @@ import com.arcrobotics.ftclib.command.SequentialCommandGroup;
 import com.arcrobotics.ftclib.command.WaitCommand;
 import com.arcrobotics.ftclib.command.WaitUntilCommand;
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.Subsystems.IOSubsystem;
 
 public class Utils {
@@ -23,6 +24,7 @@ public class Utils {
     }
     boolean succesDemand;
     double alpha;
+    int id;
 
     public Command newAutoOutake(int timeout){
         Command quickPush = new SequentialCommandGroup(
@@ -36,13 +38,16 @@ public class Utils {
                 new InstantCommand(() -> succesDemand = IO.getDemanded()),
                 new ConditionalCommand(
                         new SequentialCommandGroup(
-                                new WaitUntilCommand(() -> (IO.isSorterReady() && IO.isRPMready() && IO.isTurretReady(alpha, follower))),
+                                new WaitUntilCommand(() -> (IO.isSorterReady() && IO.isRPMready())),
                                 quickPush
                         ),
                         new InstantCommand(() -> IO.demand_index += 1),
                         () -> succesDemand
                 )
         );
+
+
+
         Command interp = new InstantCommand(() -> {
             double dist = IO.getDistanceOdom(follower.getPose());
             double[] interpValues = IO.getInterpolatedValues(dist);
@@ -51,12 +56,21 @@ public class Utils {
         });
         Command autoAim = new InstantCommand(() -> {
             alpha = IO.getAngle(follower.getPose());
-            double curAlpha = AngleUnit.normalizeRadians(follower.getPose().getHeading());
-            IO.setTargetTurretRads((AngleUnit.normalizeRadians(curAlpha - alpha)));
+            IO.setTargetTurretRads(IO.turretCommandFromGoalAngle(alpha, follower.getPose()));
         });
 
+        Command autoOutake = new ParallelCommandGroup(
+                autoAim,
+                interp,
+                new ConditionalCommand(
+                        Demand,
+                        new InstantCommand(() -> {}),
+                        () -> IO.isTurretReady(alpha, follower)
+                )
+        );
+
         Command stopAutoOutake = new InstantCommand(() -> {
-            IO.setMotorRPM(0);
+            IO.setMotorRPM(1750);
             IO.setHood(0.1);
             IO.setTargetTurretRads(0);
             IO.setPush(IO.PUSH_MIN_LIMIT);
@@ -64,9 +78,7 @@ public class Utils {
         return new SequentialCommandGroup(
                 new ParallelDeadlineGroup(
                         new WaitUntilCommand(() -> IO.ocupied() == 0),  //shoot until empty
-                        new RepeatCommand(interp),
-                        new RepeatCommand(autoAim),
-                        new RepeatCommand(Demand)
+                        new RepeatCommand(autoOutake)
                 ).withTimeout(timeout),
                 stopAutoOutake
         );
@@ -104,6 +116,62 @@ public class Utils {
 
     }
 
+
+    public Command newMotify(int timeout){
+        return
+                new SequentialCommandGroup(
+                        new ParallelDeadlineGroup(
+                                new WaitUntilCommand(()->IO.checkMotifFind(id)),
+                                new RunCommand(()-> id =IO.getMotif())
+                        ).withTimeout(timeout),
+                        new InstantCommand(()->{IO.motifTranslate(id);IO.stopLimeLight();})
+                );
+
+    }
+
+    public Command newStopIntake(){
+        return new InstantCommand(() -> {
+            IO.stop_intake();
+            IO.close();
+            IO.setPush(0);
+        });
+    }
+
+
+
+    public Command createRecoverySeq() {
+        return new SequentialCommandGroup(
+                new InstantCommand(() -> {
+                    IO.open();
+                    IO.climbDown();
+                }),
+                new WaitUntilCommand(IO::isOcupied),
+                new SequentialCommandGroup(
+                        new WaitCommand(50),
+                        new InstantCommand(IO::regist),
+                        new InstantCommand(IO::climb),
+                        new WaitUntilCommand(() -> !IO.isOcupied())
+                ),
+                new InstantCommand(() -> {
+                    IO.jam = false;
+                    IO.recovering = false;
+                })
+        );
+    }
+
+    public Command newAutoAim(){
+        return new InstantCommand(() -> {
+            alpha = IO.getAngle(follower.getPose());
+            IO.setTargetTurretRads(IO.turretCommandFromGoalAngle(alpha, follower.getPose()));
+        });
+    }
+
+
+
+
+    public Pose mirror(Pose pose){
+        return new Pose( 145-pose.getX(), 145-pose.getY(), Math.toRadians(180)-pose.getHeading());
+    }
 
 
 }

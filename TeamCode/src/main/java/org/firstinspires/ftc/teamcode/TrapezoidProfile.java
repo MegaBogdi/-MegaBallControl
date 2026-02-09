@@ -1,11 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.dashboard.config.Config;
-import com.acmerobotics.roadrunner.profile.MotionState;
-
-import org.firstinspires.ftc.teamcode.Gains.SorterGains;
-import org.firstinspires.ftc.teamcode.Gains.ProfileGains;
 import org.firstinspires.ftc.teamcode.Gains.PIDFGains;
+import org.firstinspires.ftc.teamcode.Gains.ProfileGains;
 
 public class TrapezoidProfile {
     boolean useProfile;
@@ -16,7 +12,7 @@ public class TrapezoidProfile {
     double dAccel, dCruise;
     double minVelCmd, jamVel, pwrMin, jamTime;
     double jamStart = -1;
-
+    
 
     public TrapezoidProfile(double d, double maxV, double maxA,boolean useProfile){
         this.useProfile = useProfile;
@@ -24,13 +20,13 @@ public class TrapezoidProfile {
         if (useProfile) {
             this.maxV = maxV;
             this.maxA = maxA;
-            this.velCmdEps = Gains.ProfileGains.velCmdEps;
-            this.kJ = Gains.ProfileGains.kJ;
-            this.kP = Gains.ProfileGains.kP;
-            this.kD = Gains.ProfileGains.kD;
+            this.velCmdEps = ProfileGains.velCmdEps;
+            this.kJ = ProfileGains.kJ;
+            this.kP = ProfileGains.kP;
+            this.kD = ProfileGains.kD;
         } else{
-            this.kP = Gains.PIDFGains.kP;
-            this.kD = Gains.PIDFGains.kD;
+            this.kP = PIDFGains.kP;
+            this.kD = PIDFGains.kD;
         }
 
 
